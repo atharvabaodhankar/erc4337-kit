@@ -429,9 +429,22 @@ A previous UserOperation from this smart account is still pending in the bundler
 
 ---
 
+## Contributing
+
+Found a bug? Have a feature request? Contributions are welcome!
+
+1. Fork the repo
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
 ## Links
 
 - **npm**: https://www.npmjs.com/package/erc4337-kit
+- **GitHub**: https://github.com/atharvabaodhankar/erc4337-kit
 - **Privy dashboard**: https://dashboard.privy.io
 - **Pimlico dashboard**: https://dashboard.pimlico.io
 - **Alchemy**: https://dashboard.alchemy.com
@@ -440,6 +453,14 @@ A previous UserOperation from this smart account is still pending in the bundler
 
 ---
 
+## Support
+
+- 📧 Email: [your-email@example.com]
+- 🐛 Issues: https://github.com/atharvabaodhankar/erc4337-kit/issues
+- 💬 Discussions: https://github.com/atharvabaodhankar/erc4337-kit/discussions
+
+---
+
 ## License
 
-MIT
+MIT © Atharva Baodhankar
