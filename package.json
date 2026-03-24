@@ -1,0 +1,67 @@
+{
+  "name": "@atharva/erc4337-kit",
+  "version": "0.1.0",
+  "description": "Plug-and-play ERC-4337 Account Abstraction for React apps. Gasless txs, social login, smart accounts — without the complexity.",
+  "author": "Atharva Baodhankar",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/atharva/erc4337-kit"
+  },
+  "keywords": [
+    "erc4337",
+    "account-abstraction",
+    "gasless",
+    "privy",
+    "pimlico",
+    "polygon",
+    "web3",
+    "react",
+    "smart-account",
+    "userops"
+  ],
+
+  "type": "module",
+
+  "main":    "./dist/index.cjs",
+  "module":  "./dist/index.js",
+  "exports": {
+    ".": {
+      "types":   "./dist/index.d.ts",
+      "import":  "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "src/contracts/BaseStorage.sol",
+    "README.md"
+  ],
+
+  "scripts": {
+    "build":   "tsup",
+    "dev":     "tsup --watch",
+    "prepublishOnly": "npm run build"
+  },
+
+  "peerDependencies": {
+    "react":               ">=18.0.0",
+    "react-dom":           ">=18.0.0",
+    "@privy-io/react-auth":">=3.0.0",
+    "@privy-io/wagmi":     ">=4.0.0",
+    "viem":                ">=2.0.0",
+    "wagmi":               ">=3.0.0",
+    "@tanstack/react-query":">=5.0.0"
+  },
+
+  "dependencies": {
+    "permissionless": "^0.3.4"
+  },
+
+  "devDependencies": {
+    "tsup":       "^8.0.0",
+    "react":      "^18.2.0",
+    "react-dom":  "^18.2.0",
+    "typescript": "^5.0.0"
+  }
+}
