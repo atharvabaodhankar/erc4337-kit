@@ -455,7 +455,6 @@ Found a bug? Have a feature request? Contributions are welcome!
 
 ## Support
 
-- 📧 Email: [your-email@example.com]
 - 🐛 Issues: https://github.com/atharvabaodhankar/erc4337-kit/issues
 - 💬 Discussions: https://github.com/atharvabaodhankar/erc4337-kit/discussions
 
