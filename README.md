@@ -9,7 +9,7 @@ Built on: Privy · Pimlico · Permissionless · Polygon Amoy
 ## Install
 
 ```bash
-npm install @atharva/erc4337-kit
+npm install erc4337-kit
 ```
 
 Also install peer dependencies if you haven't already:
@@ -51,8 +51,8 @@ Add this to your `index.html` `<head>` before your app script:
 ### 1. Wrap your app
 
 ```jsx
-import { ChainProvider } from '@atharva/erc4337-kit'
-import { polygonAmoy } from '@atharva/erc4337-kit'
+import { ChainProvider } from 'erc4337-kit'
+import { polygonAmoy } from 'erc4337-kit'
 
 function main() {
   return (
@@ -70,8 +70,8 @@ function main() {
 ### 2. Initialize the smart account
 
 ```jsx
-import { useSmartAccount } from '@atharva/erc4337-kit'
-import { polygonAmoy } from '@atharva/erc4337-kit'
+import { useSmartAccount } from 'erc4337-kit'
+import { polygonAmoy } from 'erc4337-kit'
 
 function App() {
   const {
@@ -95,7 +95,7 @@ function App() {
 ### 3. Store data on-chain (gasless)
 
 ```jsx
-import { useStoreOnChain, sha256Hash } from '@atharva/erc4337-kit'
+import { useStoreOnChain, sha256Hash } from 'erc4337-kit'
 
 const MY_CONTRACT_ABI = [
   {
