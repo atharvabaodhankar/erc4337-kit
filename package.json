@@ -1,6 +1,6 @@
 {
   "name": "erc4337-kit",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Plug-and-play ERC-4337 Account Abstraction for React apps. Gasless txs, social login, smart accounts — without the complexity.",
   "author": "Atharva Baodhankar",
   "license": "MIT",

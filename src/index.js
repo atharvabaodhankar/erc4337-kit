@@ -16,6 +16,12 @@ export { useExplorer } from './hooks/useExplorer.js'
 export { useContractRead } from './hooks/useContractRead.js'
 export { useWallet } from './hooks/useWallet.js'
 
+// Hooks — v0.4
+export { useAAAnalytics } from './hooks/useAAAnalytics.js'
+export { useUserOperation } from './hooks/useUserOperation.js'
+export { useSessionKey, createSessionKey } from './hooks/useSessionKey.js'
+export { usePaymasterPolicy, createPaymasterPolicy } from './hooks/usePaymasterPolicy.js'
+
 // Utils — v0.1
 export { sha256Hash, sha256HashFile } from './utils/hash.js'
 

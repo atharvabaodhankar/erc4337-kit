@@ -627,6 +627,151 @@ useBalance({ address, ...config })
 
 ---
 
+### `useAAAnalytics(config)` ✨ v0.4
+
+Tracks transaction metrics for a smart account. Persisted in localStorage.
+
+**Config:** `{ smartAccountAddress }`
+
+**Returns:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `txCount` | `number` | Total txs attempted |
+| `confirmedCount` | `number` | Successfully mined |
+| `failedCount` | `number` | Reverted or rejected |
+| `successRate` | `number` | 0–1 ratio of confirmed/attempted |
+| `totalGasSponsoredWei` | `bigint` | Total gas sponsored in wei |
+| `averageConfirmationMs` | `number` | Average confirmation time in ms |
+| `recordPending()` | `Function` | Call when UserOp is submitted |
+| `recordConfirmed(receipt, startedAt)` | `Function` | Call on confirmation |
+| `recordFailed()` | `Function` | Call on failure |
+| `reset()` | `Function` | Clear all stored analytics |
+
+```jsx
+const analytics = useAAAnalytics({ smartAccountAddress })
+const tx = useTransaction({ smartAccountClient })
+
+const handleSend = async () => {
+  const startedAt = Date.now()
+  analytics.recordPending()
+  await tx.send({ to, abi, functionName, args })
+  if (tx.confirmed) analytics.recordConfirmed(tx.receipt, startedAt)
+  if (tx.failed)    analytics.recordFailed()
+}
+
+// Display
+<p>Success rate: {(analytics.successRate * 100).toFixed(1)}%</p>
+<p>Avg time: {(analytics.averageConfirmationMs / 1000).toFixed(1)}s</p>
+```
+
+---
+
+### `useUserOperation(config)` ✨ v0.4
+
+Polls the bundler for UserOp status. Useful for monitoring ops submitted by external signers or agents.
+
+**Config:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `userOpHash` | `string` | Yes | The UserOperation hash |
+| `pimlicoClient` | `PimlicoClient` | Yes | From `useSmartAccount()` |
+| `pollInterval` | `number` | No | Poll interval ms (default `2000`) |
+| `timeout` | `number` | No | Give up after N ms (default `120_000`) |
+
+**Returns:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | `'idle' \| 'pending' \| 'confirmed' \| 'failed' \| 'timeout'` | Current status |
+| `receipt` | `UserOperationReceipt \| null` | Receipt once confirmed |
+| `txHash` | `string \| null` | On-chain tx hash |
+| `error` | `string \| null` | Error if failed |
+| `startPolling()` | `Function` | Manually start polling |
+| `stopPolling()` | `Function` | Stop polling |
+| `reset()` | `Function` | Clear all state |
+
+---
+
+### `createSessionKey(options)` ✨ v0.4
+
+Async utility. Generates a temporary keypair with expiry, stored in localStorage.
+
+```js
+const session = await createSessionKey({
+  smartAccountAddress,
+  expiresIn: '7d',      // also: '24h', '30m', '60s', 5000 (ms)
+  label: 'game-session',
+})
+
+console.log(session.address)    // 0x... (temporary signer address)
+console.log(session.expiresAt)  // Unix ms timestamp
+console.log(session.isValid())  // true/false
+```
+
+> **Note:** True contract-level session key scoping (restricting which contracts a key can call) requires a Kernel or Safe smart account. `createSessionKey` generates an ephemeral EOA keypair suitable for reducing re-prompts in games and agents.
+
+---
+
+### `useSessionKey(config)` ✨ v0.4
+
+React hook wrapping `createSessionKey` with lifecycle management.
+
+**Config:** `{ smartAccountAddress }`
+
+**Returns:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `sessions` | `array` | All non-expired sessions |
+| `activeSession` | `object \| null` | Most recent valid session |
+| `hasActiveSession` | `boolean` | Shorthand |
+| `create({ expiresIn, label? })` | `async Function` | Create a new session key |
+| `revoke(address)` | `Function` | Remove a session by its address |
+| `revokeAll()` | `Function` | Remove all sessions |
+| `isLoading` | `boolean` | True while creating |
+
+---
+
+### `createPaymasterPolicy(options)` ✨ v0.4
+
+Creates a policy object for use with `usePaymasterPolicy`.
+
+```js
+const policy = createPaymasterPolicy({
+  dailyLimitUSD:      5,                    // max $5 gas sponsored per day
+  allowedContracts:   [contractAddress],    // empty = allow all
+  maxGasPerTx:        500_000n,             // gas units (not wei)
+  maxTxPerDay:        20,                   // transaction count limit
+})
+```
+
+---
+
+### `usePaymasterPolicy(config)` ✨ v0.4
+
+Wraps `smartAccountClient` with policy enforcement. Same `send()` API as `useTransaction`.
+
+**Config:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `smartAccountClient` | `SmartAccountClient` | Yes | From `useSmartAccount()` |
+| `smartAccountAddress` | `string` | Yes | For usage tracking |
+| `policy` | `object` | Yes | From `createPaymasterPolicy()` |
+| `gasUsdPrice` | `number` | No | Token price in USD for limit calculations (default `1.0`) |
+
+**Returns:** Same as `useTransaction`, plus:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `usage.txCount` | `number` | Txs sent today |
+| `usage.estimatedUSD` | `number` | Estimated USD spent today |
+| `resetUsage()` | `Function` | Manually reset daily counter |
+
+---
+
 ### `useStoreOnChain(config)`
 
 > A focused hook for the specific pattern of hashing data and storing on-chain. For general contract interactions, prefer `useTransaction`.
@@ -706,6 +851,12 @@ One of the calls in your batch likely has wrong arguments or a contract that's r
 ---
 
 ## Changelog
+
+### v0.4.0
+- ✨ `useAAAnalytics` — localStorage-persisted tx analytics (count, success rate, gas sponsored, avg confirmation time)
+- ✨ `useUserOperation` — UserOp status monitoring via bundler polling
+- ✨ `createSessionKey` + `useSessionKey` — ephemeral keypair sessions with expiry and revocation
+- ✨ `createPaymasterPolicy` + `usePaymasterPolicy` — client-side spending limits, allowlists, and gas caps
 
 ### v0.3.0
 - ✨ `useWallet` — unified hook (auth + smart account + balance + chain info)
