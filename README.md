@@ -32,7 +32,7 @@ Error parsing                     useExplorer()         (1 line)
 ## Requirements
 
 - React 18 or 19
-- Vite (Next.js support coming in v0.3)
+- Vite, Next.js, or Create React App
 - Node.js 18+
 - A Privy App ID (free at [dashboard.privy.io](https://dashboard.privy.io))
 - A Pimlico API Key (free at [dashboard.pimlico.io](https://dashboard.pimlico.io))
@@ -40,7 +40,26 @@ Error parsing                     useExplorer()         (1 line)
 
 ---
 
-## Installation
+## Setup via CLI (Recommended) ✨ v0.5
+
+The fastest way to get started is by scaffolding a pre-configured template using our CLI in an empty folder:
+
+```bash
+# Vite + React (default)
+npx erc4337-kit init
+
+# Next.js App Router
+npx erc4337-kit init next
+
+# Create React App style
+npx erc4337-kit init react
+```
+
+This generates all the boilerplate files (`vite.config.js`/`next.config.js`, browser polyfills, environment files, providers, and a complete pre-configured `App.jsx` using `useWallet`).
+
+---
+
+## Manual Installation
 
 ```bash
 # Step 1: install the package
@@ -810,6 +829,56 @@ Hashing happens in the browser using the Web Crypto API — no data leaves the d
 
 ---
 
+### `createContractClient(config)` ✨ v0.5
+
+Creates a typed dynamic contract wrapper with beautiful `read` and `write` interfaces. Standard reads are free and go through a publicClient, while writes automatically go gasless through your `smartAccountClient`.
+
+```js
+import { createContractClient, polygonAmoy } from 'erc4337-kit'
+
+const registry = createContractClient({
+  address:             import.meta.env.VITE_CONTRACT_ADDRESS,
+  abi:                 registryAbi,
+  smartAccountClient:  wallet.smartAccountClient, // required for writes
+  chain:               polygonAmoy,              // required for reads
+  rpcUrl:              import.meta.env.VITE_RPC_URL, // required for reads
+})
+
+// 1. Read from contract (free, automatically formatted)
+const total = await registry.read.totalRecords()
+
+// 2. Write gaslessly (returns transaction hash, automatic UserOp wrapping)
+const txHash = await registry.write.storeRecord([dataHash])
+```
+
+---
+
+### Structured Error System ✨ v0.5
+
+No more parsing raw unreadable ERC-4337 hex strings! `erc4337-kit` includes a built-in structured error analyzer that converts EntryPoint and bundler/paymaster errors into elegant objects.
+
+```js
+import { parseAAError } from 'erc4337-kit'
+
+try {
+  await registry.write.storeRecord([dataHash])
+} catch (err) {
+  const error = parseAAError(err)
+  
+  console.log(error.code)    // "AA21"
+  console.log(error.title)   // "Paymaster Rejected"
+  console.log(error.message) // "The paymaster rejected your sponsorship request."
+  console.log(error.fix)     // "Verify your Pimlico API key is correct and this chain is enabled..."
+}
+```
+
+We export:
+* `parseAAError(err: Error)` — parses any error into a structured `ERC4337Error`
+* `ERC4337Error` — structured error class
+* `AA_ERROR_CODES` — map of all EntryPoint codes (`AA10` through `AA96`) to their pre-configured titles, messages, and actionable fixes.
+
+---
+
 ## Troubleshooting
 
 ### `ReferenceError: Buffer is not defined`
@@ -851,6 +920,11 @@ One of the calls in your batch likely has wrong arguments or a contract that's r
 ---
 
 ## Changelog
+
+### v0.5.0
+- ✨ **CLI tool** (`npx erc4337-kit init`) for zero-config Vite, Next.js, and React starter templates.
+- ✨ `createContractClient` — Proxy-based typed contract wrapper for beautiful reads and writes.
+- ✨ **Structured Error System** (`parseAAError`, `ERC4337Error`, `AA_ERROR_CODES`) converting EntryPoint and bundler errors to human-friendly titles, messages, and fixes.
 
 ### v0.4.0
 - ✨ `useAAAnalytics` — localStorage-persisted tx analytics (count, success rate, gas sponsored, avg confirmation time)

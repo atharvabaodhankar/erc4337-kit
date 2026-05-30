@@ -28,6 +28,10 @@ export { sha256Hash, sha256HashFile } from './utils/hash.js'
 // Utils — v0.3
 export { createERC4337Config } from './utils/config.js'
 
+// Utils — v0.5
+export { createContractClient } from './utils/contractClient.js'
+export { parseAAError, ERC4337Error, AA_ERROR_CODES } from './utils/errors.js'
+
 // Re-export commonly needed viem chains so consumers
 // don't need to install viem just to get the chain object
 // v0.1 chains

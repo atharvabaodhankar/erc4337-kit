@@ -1,6 +1,6 @@
 {
   "name": "erc4337-kit",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Plug-and-play ERC-4337 Account Abstraction for React apps. Gasless txs, social login, smart accounts — without the complexity.",
   "author": "Atharva Baodhankar",
   "license": "MIT",
@@ -23,6 +23,9 @@
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
+  "bin": {
+    "erc4337-kit": "./bin/cli.cjs"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -33,7 +36,8 @@
   "files": [
     "dist",
     "src/contracts/BaseStorage.sol",
-    "README.md"
+    "README.md",
+    "bin"
   ],
   "scripts": {
     "build": "tsup",
@@ -41,21 +45,26 @@
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
-    "react": ">=18.0.0",
-    "react-dom": ">=18.0.0",
     "@privy-io/react-auth": ">=3.0.0",
     "@privy-io/wagmi": ">=4.0.0",
+    "@tanstack/react-query": ">=5.0.0",
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0",
     "viem": ">=2.0.0",
-    "wagmi": ">=3.0.0",
-    "@tanstack/react-query": ">=5.0.0"
+    "wagmi": ">=3.0.0"
   },
   "dependencies": {
     "permissionless": "^0.3.4"
   },
   "devDependencies": {
-    "tsup": "^8.0.0",
+    "@privy-io/react-auth": "^3.28.0",
+    "@privy-io/wagmi": "^4.0.10",
+    "@tanstack/react-query": "^5.100.14",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "typescript": "^5.0.0"
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "viem": "^2.51.3",
+    "wagmi": "^3.6.16"
   }
 }
