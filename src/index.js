@@ -12,9 +12,19 @@ export { useTokenBalance } from './hooks/useTokenBalance.js'
 export { useBatchTransaction } from './hooks/useBatchTransaction.js'
 export { useExplorer } from './hooks/useExplorer.js'
 
-// Utils
+// Hooks — v0.3
+export { useContractRead } from './hooks/useContractRead.js'
+export { useWallet } from './hooks/useWallet.js'
+
+// Utils — v0.1
 export { sha256Hash, sha256HashFile } from './utils/hash.js'
+
+// Utils — v0.3
+export { createERC4337Config } from './utils/config.js'
 
 // Re-export commonly needed viem chains so consumers
 // don't need to install viem just to get the chain object
+// v0.1 chains
 export { polygonAmoy, polygon, sepolia, baseSepolia } from 'viem/chains'
+// v0.3 chains
+export { base, arbitrum, optimism, avalanche, bsc } from 'viem/chains'

@@ -1,8 +1,8 @@
 # erc4337-kit
 
-> ERC-4337 Account Abstraction for React — gasless transactions, social login, and smart accounts without the complexity.
+> ERC-4337 Account Abstraction for React — gasless transactions, social login, smart accounts, balances, contract reads, and batch calls without the complexity.
 
-Built on **Privy** (auth) · **Pimlico** (bundler + paymaster) · **Permissionless** (smart accounts) · **Polygon Amoy** (default chain)
+Built on **Privy** (auth) · **Pimlico** (bundler + paymaster) · **Permissionless** (smart accounts) · **viem** (Ethereum client)
 
 [![npm](https://img.shields.io/npm/v/erc4337-kit)](https://www.npmjs.com/package/erc4337-kit)
 [![license](https://img.shields.io/npm/l/erc4337-kit)](LICENSE)
@@ -13,17 +13,18 @@ Built on **Privy** (auth) · **Pimlico** (bundler + paymaster) · **Permissionle
 
 Normally, setting up ERC-4337 means wiring together Privy, Permissionless, Pimlico, viem, wagmi, and writing ~200 lines of boilerplate hooks yourself — dealing with race conditions, polyfills, gas estimation, UserOperation formatting, and paymaster sponsorship.
 
-This package collapses all of that into **three exports**: a provider, a hook, and a transaction hook.
+This package collapses all of that into a single install.
 
 ```
-Without erc4337-kit:         With erc4337-kit:
-─────────────────────        ─────────────────────
-200 lines of setup      →    <ChainProvider> (5 lines)
-Privy + wagmi + QueryClient  useSmartAccount() (1 line)
-Smart account init race fix  useStoreOnChain() (1 line)
-Pimlico gas estimation
-UserOperation formatting
-Error parsing
+Without erc4337-kit:              With erc4337-kit:
+─────────────────────────         ────────────────────────
+200 lines of setup          →     <ChainProvider>       (5 lines)
+Privy + wagmi + QueryClient       useWallet()           (1 line)
+Smart account init race fix       useTransaction()      (1 line)
+Pimlico gas estimation            useBalance()          (1 line)
+UserOperation formatting          useBatchTransaction() (1 line)
+Contract read boilerplate         useContractRead()     (1 line)
+Error parsing                     useExplorer()         (1 line)
 ```
 
 ---
@@ -31,7 +32,7 @@ Error parsing
 ## Requirements
 
 - React 18 or 19
-- Vite (Next.js support coming)
+- Vite (Next.js support coming in v0.3)
 - Node.js 18+
 - A Privy App ID (free at [dashboard.privy.io](https://dashboard.privy.io))
 - A Pimlico API Key (free at [dashboard.pimlico.io](https://dashboard.pimlico.io))
@@ -102,7 +103,7 @@ export default defineConfig({
 ```env
 VITE_PRIVY_APP_ID=          # from dashboard.privy.io → your app → App ID
 VITE_PIMLICO_API_KEY=       # from dashboard.pimlico.io → API Keys
-VITE_RPC_URL=               # from dashboard.alchemy.com → Polygon Amoy → HTTPS URL
+VITE_RPC_URL=               # from dashboard.alchemy.com → your chain → HTTPS URL
 VITE_CONTRACT_ADDRESS=      # your deployed contract address (after you deploy)
 ```
 
@@ -110,11 +111,11 @@ VITE_CONTRACT_ADDRESS=      # your deployed contract address (after you deploy)
 
 ---
 
-## Usage
+## Quick Start
 
-### Step 1 — Wrap your app with `ChainProvider`
+### 1. Wrap your app with `ChainProvider`
 
-Put this in `src/main.jsx`. It sets up Privy, QueryClient, and Wagmi in one shot.
+Put this in `src/main.jsx`. Sets up Privy, QueryClient, and Wagmi in one shot.
 
 ```jsx
 import React from 'react'
@@ -137,155 +138,230 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 )
 ```
 
-### Step 2 — Initialize the smart account
+### 2. Initialize the wallet (recommended: use `useWallet`)
+
+`useWallet` is the all-in-one hook introduced in v0.3. It replaces calling `useSmartAccount` and `useBalance` separately.
 
 ```jsx
-import { useSmartAccount, polygonAmoy } from 'erc4337-kit'
+import { useWallet, polygonAmoy } from 'erc4337-kit'
 
 function App() {
-  const {
-    login,                 // Function — opens Privy login modal
-    logout,                // Function — clears all state
-    authenticated,         // boolean — user is logged in
-    user,                  // Privy user object (has .email.address, .google.email)
-    smartAccountAddress,   // string — the user's smart account address (0x...)
-    smartAccountClient,    // SmartAccountClient — use this to send transactions
-    isReady,               // boolean — smart account is initialized, safe to transact
-    isLoading,             // boolean — still setting up
-    error,                 // string | null — human-readable error message
-  } = useSmartAccount({
+  const wallet = useWallet({
     pimlicoApiKey: import.meta.env.VITE_PIMLICO_API_KEY,
     rpcUrl:        import.meta.env.VITE_RPC_URL,
     chain:         polygonAmoy,
   })
 
-  if (!authenticated) return <button onClick={login}>Sign in</button>
-  if (isLoading)      return <p>Setting up your wallet…</p>
-  if (error)          return <p style={{ color: 'red' }}>Error: {error}</p>
+  if (!wallet.authenticated) return <button onClick={wallet.login}>Sign in</button>
+  if (wallet.isLoading)      return <p>Setting up your wallet…</p>
+  if (wallet.error)          return <p style={{ color: 'red' }}>Error: {wallet.error}</p>
 
   return (
     <div>
-      <p>Smart account: {smartAccountAddress}</p>
-      <button onClick={logout}>Sign out</button>
+      <p>Address: {wallet.address}</p>
+      <p>Balance: {wallet.balance.formatted} {wallet.balance.symbol}</p>
+      <p>Network: {wallet.chainName}</p>
+      <button onClick={wallet.logout}>Sign out</button>
     </div>
   )
 }
 ```
 
-> `smartAccountAddress` is **deterministic** — the same user always gets the same address across sessions. It is a smart contract address, not the user's EOA (embedded wallet). Store this in your database, not the Privy user ID, if you need to link on-chain records to users.
+> If you need individual hooks (e.g. for code-splitting), you can still use `useSmartAccount` and `useBalance` separately — `useWallet` is just a convenience wrapper.
 
-### Step 3 — Send a gasless transaction
+> `wallet.address` is **deterministic** — the same user always gets the same smart account address across sessions. Store this in your database if you need to link on-chain records to users.
 
-#### Option A: use `useStoreOnChain` (simplest — for hash-based data storage)
+### 3. Send a gasless transaction
 
 ```jsx
-import { useStoreOnChain, sha256Hash } from 'erc4337-kit'
-
-const MY_ABI = [{
-  name: 'storeRecord',
-  type: 'function',
-  inputs: [{ name: 'dataHash', type: 'bytes32' }],
-}]
+import { useTransaction, sha256Hash } from 'erc4337-kit'
 
 function SubmitForm({ smartAccountClient }) {
-  const {
-    submit,      // async (args: any[]) => string | null — returns txHash
-    txHash,      // string | null
-    recordId,    // string | null — decoded bytes32 from first event log
-    isLoading,   // boolean
-    isSuccess,   // boolean
-    error,       // string | null
-    reset,       // Function — resets all state back to null
-  } = useStoreOnChain({
-    smartAccountClient,
-    contractAddress: import.meta.env.VITE_CONTRACT_ADDRESS,
-    abi: MY_ABI,
-    functionName: 'storeRecord',
-  })
+  const tx = useTransaction({ smartAccountClient })
 
   const handleSubmit = async (rawData) => {
-    const hash = await sha256Hash(JSON.stringify(rawData))  // hash locally
-    await submit([hash])                                     // send on-chain
+    const dataHash = await sha256Hash(JSON.stringify(rawData))
+
+    await tx.send({
+      to: import.meta.env.VITE_CONTRACT_ADDRESS,
+      abi: myAbi,
+      functionName: 'storeRecord',
+      args: [dataHash],
+    })
   }
 
   return (
     <div>
-      <button onClick={() => handleSubmit({ text: 'my data' })} disabled={isLoading}>
-        {isLoading ? 'Storing…' : 'Submit'}
+      <button onClick={() => handleSubmit({ text: 'my data' })} disabled={tx.pending}>
+        {tx.pending ? 'Sending…' : 'Submit'}
       </button>
-      {isSuccess && <p>Stored! Tx: <a href={`https://amoy.polygonscan.com/tx/${txHash}`}>{txHash?.slice(0,10)}…</a></p>}
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {tx.confirmed && <p>✅ Confirmed! Tx: {tx.txHash?.slice(0, 10)}…</p>}
+      {tx.failed    && <p>❌ Failed: {tx.error}</p>}
     </div>
   )
 }
 ```
 
-#### Option B: use `smartAccountClient.sendTransaction` directly (for any contract call)
+### 4. Check balances
 
 ```jsx
-import { encodeFunctionData } from 'viem'
+import { useBalance, useTokenBalance, polygonAmoy } from 'erc4337-kit'
 
-const handleAddTodo = async (task) => {
-  const calldata = encodeFunctionData({
-    abi: contractABI,
-    functionName: 'addTodo',
-    args: [task],
+function WalletInfo({ smartAccountAddress }) {
+  // Native token (MATIC on Polygon, ETH on Ethereum, etc.)
+  const native = useBalance({
+    address: smartAccountAddress,
+    chain:   polygonAmoy,
+    rpcUrl:  import.meta.env.VITE_RPC_URL,
   })
 
-  // ✅ Correct — use sendTransaction with encoded calldata
-  const hash = await smartAccountClient.sendTransaction({
-    to: contractAddress,
-    data: calldata,
-    value: 0n,             // no ETH/MATIC being sent
+  // ERC20 token (e.g. USDC)
+  const usdc = useTokenBalance({
+    tokenAddress: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359', // USDC on Polygon
+    address:      smartAccountAddress,
+    chain:        polygonAmoy,
+    rpcUrl:       import.meta.env.VITE_RPC_URL,
   })
 
-  console.log('tx hash:', hash)
+  return (
+    <div>
+      <p>Balance: {native.formatted} {native.symbol}</p>
+      <p>USDC: {usdc.formatted} {usdc.symbol}</p>
+    </div>
+  )
 }
 ```
 
-> **Critical:** Do NOT use `smartAccountClient.writeContract()`. The smart account client uses `sendTransaction` with `encodeFunctionData`. Calling `writeContract` throws `account.encodeCalls is not a function`.
+> **Tip:** If you use `useWallet`, the native balance is already included as `wallet.balance` — no need to call `useBalance` separately.
 
-### Step 4 — Read from the contract
-
-For reading, create a standard `publicClient` from viem. Reading is free (no gas, no smart account needed).
+### 5. Batch multiple calls in one UserOperation
 
 ```jsx
-import { createPublicClient, http } from 'viem'
-import { polygonAmoy } from 'erc4337-kit'
+import { useBatchTransaction } from 'erc4337-kit'
 
-const publicClient = createPublicClient({
-  chain: polygonAmoy,
-  transport: http(import.meta.env.VITE_RPC_URL),
-})
+function BatchDemo({ smartAccountClient }) {
+  const batch = useBatchTransaction({ smartAccountClient })
 
-// For user-specific data, pass account: smartAccountAddress
-const todos = await publicClient.readContract({
-  address: contractAddress,
-  abi: contractABI,
-  functionName: 'getTodos',
-  args: [],
-  account: smartAccountAddress,  // required for mapping(address => ...) returns
-})
+  const handleBatch = async () => {
+    await batch.send([
+      {
+        to: contractA,
+        abi: abiA,
+        functionName: 'approve',
+        args: [spender, amount],
+      },
+      {
+        to: contractB,
+        abi: abiB,
+        functionName: 'deposit',
+        args: [amount],
+      },
+    ])
+    // Both calls go in a single UserOperation — one signature, one gas sponsorship
+  }
+
+  return (
+    <button onClick={handleBatch} disabled={batch.pending}>
+      {batch.pending ? 'Sending batch…' : 'Execute batch'}
+    </button>
+  )
+}
+```
+
+### 6. Chain-aware explorer links
+
+```jsx
+import { useExplorer, polygonAmoy } from 'erc4337-kit'
+
+function TxLink({ txHash }) {
+  const explorer = useExplorer({ chain: polygonAmoy })
+
+  return (
+    <a href={explorer.tx(txHash)} target="_blank" rel="noreferrer">
+      View on {explorer.name}
+    </a>
+  )
+}
+```
+
+### 7. Read from the contract
+
+Use `useContractRead` — no manual `publicClient` setup needed.
+
+```jsx
+import { useContractRead, polygonAmoy } from 'erc4337-kit'
+
+function RecordList({ smartAccountAddress }) {
+  const { data: records, isLoading, refetch } = useContractRead({
+    address:      contractAddress,
+    abi:          contractABI,
+    functionName: 'getRecordsBySubmitter',
+    args:         [smartAccountAddress],
+    account:      smartAccountAddress,   // required for msg.sender-based reads
+    chain:        polygonAmoy,
+    rpcUrl:       import.meta.env.VITE_RPC_URL,
+    refetchInterval: 10_000,             // auto-refetch every 10 seconds (optional)
+  })
+
+  if (isLoading) return <p>Loading…</p>
+
+  return (
+    <ul>
+      {records?.map(id => <li key={id}>{id}</li>)}
+    </ul>
+  )
+}
 ```
 
 > `account: smartAccountAddress` is required when your contract uses `msg.sender` to look up data. Without it, the read returns data for address `0x000...000` instead.
+
+### 8. Use a shared config object
+
+Avoid repeating `chain`, `rpcUrl`, and `pimlicoApiKey` in every hook call:
+
+```jsx
+// src/config.js — define once
+import { createERC4337Config, polygonAmoy } from 'erc4337-kit'
+
+export const config = createERC4337Config({
+  chain:         polygonAmoy,
+  rpcUrl:        import.meta.env.VITE_RPC_URL,
+  pimlicoApiKey: import.meta.env.VITE_PIMLICO_API_KEY,
+})
+
+// In any component:
+import { config } from './config'
+
+const wallet = useWallet(config)
+const { data } = useContractRead({ address, abi, functionName, ...config })
+const balance = useBalance({ address: wallet.address, ...config })
+```
 
 ---
 
 ## Supported chains
 
 ```js
+// v0.1 chains
 import { polygonAmoy, polygon, sepolia, baseSepolia } from 'erc4337-kit'
+
+// v0.3 chains
+import { base, arbitrum, optimism, avalanche, bsc } from 'erc4337-kit'
 ```
 
-| Export | Network | Use for |
-|--------|---------|---------|
-| `polygonAmoy` | Polygon Amoy testnet (chain ID 80002) | Development and testing |
-| `polygon` | Polygon mainnet | Production |
-| `sepolia` | Ethereum Sepolia testnet | Ethereum testing |
-| `baseSepolia` | Base Sepolia testnet | Base chain testing |
+| Export | Network | Chain ID | Use for |
+|--------|---------|----------|---------|
+| `polygonAmoy` | Polygon Amoy testnet | 80002 | Development and testing |
+| `polygon` | Polygon mainnet | 137 | Production (Polygon) |
+| `sepolia` | Ethereum Sepolia testnet | 11155111 | Ethereum testing |
+| `baseSepolia` | Base Sepolia testnet | 84532 | Base testing |
+| `base` | Base mainnet | 8453 | Production (Base) |
+| `arbitrum` | Arbitrum One | 42161 | Production (Arbitrum) |
+| `optimism` | Optimism mainnet | 10 | Production (Optimism) |
+| `avalanche` | Avalanche C-Chain | 43114 | Production (Avalanche) |
+| `bsc` | BNB Smart Chain | 56 | Production (BNB) |
 
-Any chain supported by both Pimlico and Privy works — these are just the re-exported convenience constants.
+All chains supported by both Pimlico and Privy work. These are re-exported from viem for convenience.
 
 ---
 
@@ -317,11 +393,11 @@ contract YourApp {
 }
 ```
 
-A template with more complete patterns is included at `node_modules/erc4337-kit/src/contracts/BaseStorage.sol`.
+A full template with events, verification, and submitter indexing is included at `node_modules/erc4337-kit/src/contracts/BaseStorage.sol`.
 
 ---
 
-## API reference
+## API Reference
 
 ### `<ChainProvider>`
 
@@ -332,6 +408,8 @@ A template with more complete patterns is included at `node_modules/erc4337-kit/
 | `rpcUrl` | `string` | Yes | — | Alchemy / Infura RPC URL |
 | `loginMethods` | `string[]` | No | `['google', 'email']` | Privy login methods |
 | `appearance` | `object` | No | `{ theme: 'light' }` | Privy modal appearance |
+
+---
 
 ### `useSmartAccount(config)`
 
@@ -358,7 +436,200 @@ A template with more complete patterns is included at `node_modules/erc4337-kit/
 | `isLoading` | `boolean` | True during initialization |
 | `error` | `string \| null` | Human-readable error |
 
+---
+
+### `useTransaction(config)` ✨ v0.2
+
+**Config:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `smartAccountClient` | `SmartAccountClient` | Yes | From `useSmartAccount()` |
+
+**`send(params)` params:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `to` | `string` | Yes | Target contract or wallet address |
+| `abi` | `Abi` | No | Contract ABI (required if calling a function) |
+| `functionName` | `string` | No | Function to call |
+| `args` | `any[]` | No | Function arguments (default `[]`) |
+| `value` | `bigint` | No | Native token value in wei (default `0n`) |
+| `data` | `string` | No | Raw calldata (alternative to abi/functionName/args) |
+
+**Returns:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `send` | `async (params) => string \| null` | Sends the transaction, returns txHash |
+| `pending` | `boolean` | True while UserOp is being submitted and mined |
+| `confirmed` | `boolean` | True once tx is successfully mined |
+| `failed` | `boolean` | True if tx reverted or was rejected |
+| `txHash` | `string \| null` | Transaction hash |
+| `receipt` | `TransactionReceipt \| null` | Full receipt after confirmation |
+| `error` | `string \| null` | Human-readable error |
+| `reset` | `Function` | Resets all state |
+
+---
+
+### `useBalance(config)` ✨ v0.2
+
+**Config:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `address` | `string` | Yes | Smart account address |
+| `chain` | `Chain` (viem) | Yes | Target chain |
+| `rpcUrl` | `string` | Yes | RPC URL |
+
+**Returns:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `formatted` | `string \| null` | Human-readable balance (e.g. `"1.234"`) |
+| `raw` | `bigint \| null` | Raw balance in wei |
+| `symbol` | `string` | Native currency symbol (e.g. `"MATIC"`, `"ETH"`) |
+| `isLoading` | `boolean` | True while fetching |
+| `error` | `string \| null` | Error message |
+| `refetch` | `Function` | Manually refresh the balance |
+
+---
+
+### `useTokenBalance(config)` ✨ v0.2
+
+**Config:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `tokenAddress` | `string` | Yes | ERC20 contract address |
+| `address` | `string` | Yes | Smart account address |
+| `chain` | `Chain` (viem) | Yes | Target chain |
+| `rpcUrl` | `string` | Yes | RPC URL |
+
+**Returns:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `formatted` | `string \| null` | Human-readable balance |
+| `raw` | `bigint \| null` | Raw balance |
+| `symbol` | `string \| null` | Token symbol (e.g. `"USDC"`) |
+| `decimals` | `number \| null` | Token decimals (e.g. `6`) |
+| `name` | `string \| null` | Token name (e.g. `"USD Coin"`) |
+| `isLoading` | `boolean` | True while fetching |
+| `error` | `string \| null` | Error message |
+| `refetch` | `Function` | Manually refresh |
+
+---
+
+### `useBatchTransaction(config)` ✨ v0.2
+
+**Config:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `smartAccountClient` | `SmartAccountClient` | Yes | From `useSmartAccount()` |
+
+**`send(transactions)` — array of:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `to` | `string` | Yes | Target address |
+| `abi` | `Abi` | No | Contract ABI |
+| `functionName` | `string` | No | Function to call |
+| `args` | `any[]` | No | Arguments (default `[]`) |
+| `value` | `bigint` | No | Native value (default `0n`) |
+| `data` | `string` | No | Raw calldata |
+
+**Returns:** Same shape as `useTransaction` — `{ send, pending, confirmed, failed, txHash, receipt, error, reset }`.
+
+---
+
+### `useExplorer(config)` ✨ v0.2
+
+**Config:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `chain` | `Chain` (viem) | Yes | Target chain |
+
+**Returns:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `tx(hash)` | `string \| null` | Full URL to transaction page |
+| `address(addr)` | `string \| null` | Full URL to address page |
+| `block(number)` | `string \| null` | Full URL to block page |
+| `token(addr)` | `string \| null` | Full URL to token page |
+| `baseUrl` | `string \| null` | Root explorer URL |
+| `name` | `string` | Explorer display name |
+
+---
+
+### `useWallet(config)` ✨ v0.3
+
+Unified hook combining `useSmartAccount` + `useBalance`. Accepts the same config as `useSmartAccount`.
+
+**Config:** Same as `useSmartAccount` — `{ pimlicoApiKey, rpcUrl, chain }`
+
+**Returns:** All fields from `useSmartAccount`, plus:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `address` | `string \| null` | Shorthand for `smartAccountAddress` |
+| `chainId` | `number \| null` | Numeric chain ID |
+| `chainName` | `string \| null` | Human-readable chain name |
+| `balance` | `object` | `{ formatted, raw, symbol, isLoading, error, refetch }` |
+| `owner` | `string \| null` | EOA address that owns the smart account |
+
+---
+
+### `useContractRead(config)` ✨ v0.3
+
+**Config:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `address` | `string` | Yes | Contract address |
+| `abi` | `Abi` | Yes | Contract ABI |
+| `functionName` | `string` | Yes | Function to read |
+| `args` | `any[]` | No | Function arguments (default `[]`) |
+| `account` | `string` | No | Caller address (for `msg.sender`-based reads) |
+| `chain` | `Chain` (viem) | Yes | Target chain |
+| `rpcUrl` | `string` | Yes | RPC URL |
+| `refetchInterval` | `number` | No | Auto-refetch interval in ms (0 = disabled) |
+| `enabled` | `boolean` | No | Set `false` to skip the fetch (default `true`) |
+
+**Returns:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `data` | `any` | Contract return value |
+| `isLoading` | `boolean` | True on the initial fetch only |
+| `isFetching` | `boolean` | True on any fetch (including background refetches) |
+| `error` | `string \| null` | Error message |
+| `refetch` | `Function` | Manually trigger a fresh read |
+
+---
+
+### `createERC4337Config(options)` ✨ v0.3
+
+Creates a reusable config object to spread into any hook, avoiding repetition.
+
+```js
+const config = createERC4337Config({ chain, rpcUrl, pimlicoApiKey })
+
+useWallet(config)
+useContractRead({ address, abi, functionName, ...config })
+useBalance({ address, ...config })
+```
+
+**Options:** `{ chain, rpcUrl, pimlicoApiKey? }` — throws if `chain` or `rpcUrl` are missing.
+
+---
+
 ### `useStoreOnChain(config)`
+
+> A focused hook for the specific pattern of hashing data and storing on-chain. For general contract interactions, prefer `useTransaction`.
 
 **Config:**
 
@@ -366,7 +637,7 @@ A template with more complete patterns is included at `node_modules/erc4337-kit/
 |-------|------|----------|-------------|
 | `smartAccountClient` | `SmartAccountClient` | Yes | From `useSmartAccount()` |
 | `contractAddress` | `string` | Yes | Deployed contract address |
-| `abi` | `Abi` | Yes | Contract ABI (just the functions you need) |
+| `abi` | `Abi` | Yes | Contract ABI |
 | `functionName` | `string` | Yes | Function to call |
 
 **Returns:**
@@ -379,16 +650,18 @@ A template with more complete patterns is included at `node_modules/erc4337-kit/
 | `isLoading` | `boolean` | True while submitting |
 | `isSuccess` | `boolean` | True after successful submission |
 | `error` | `string \| null` | Human-readable error |
-| `reset` | `Function` | Clears all state back to null |
+| `reset` | `Function` | Clears all state |
 
-### `sha256Hash(data)` / `sha256HashFile(file)`
+---
+
+### `sha256Hash(text)` / `sha256HashFile(file)`
 
 ```js
-const hash = await sha256Hash('any string')     // → '0x7f3a...' (66 chars)
-const hash = await sha256HashFile(fileObject)   // → '0xabcd...' (66 chars)
+const hash = await sha256Hash('any string')     // → '0x7f3a...' (66 chars, bytes32-compatible)
+const hash = await sha256HashFile(fileObject)   // → '0xabcd...' (66 chars, bytes32-compatible)
 ```
 
-Both return a `0x`-prefixed hex string that is `bytes32`-compatible. Hashing happens in the browser using the Web Crypto API — no data leaves the device.
+Hashing happens in the browser using the Web Crypto API — no data leaves the device.
 
 ---
 
@@ -398,16 +671,16 @@ Both return a `0x`-prefixed hex string that is `bytes32`-compatible. Hashing hap
 The polyfill script is missing from `index.html`, or it's placed after your app script. It must come first in `<head>`.
 
 ### Smart account not initializing
-Check all three env vars are set and correct. Add `console.log(error)` from `useSmartAccount` to see the exact message. Most commonly: wrong Pimlico API key, or Polygon Amoy not enabled in your Pimlico dashboard.
+Check all three env vars are set and correct. The `error` field from `useSmartAccount` will give you the exact message. Most commonly: wrong Pimlico API key, or your chain not enabled in your Pimlico dashboard.
 
 ### `account.encodeCalls is not a function`
-You called `smartAccountClient.writeContract()`. Use `smartAccountClient.sendTransaction()` with `encodeFunctionData()` from viem instead. See Option B in usage above.
+You called `smartAccountClient.writeContract()`. Use `useTransaction` or `smartAccountClient.sendTransaction()` with `encodeFunctionData()` from viem instead.
 
 ### Contract reads returning empty or wrong data
 You're missing `account: smartAccountAddress` in `publicClient.readContract()`. Without it, reads go out as address `0x0` which returns empty mappings.
 
 ### `AA21` — paymaster rejected
-Your Pimlico API key is wrong, or Polygon Amoy isn't enabled in your Pimlico project dashboard. The erc4337-kit error message will say this in plain English.
+Your Pimlico API key is wrong, or your chain isn't enabled in your Pimlico project dashboard.
 
 ### `AA31` — paymaster out of funds
 Your Pimlico paymaster balance is empty. The free tier works for testnet — log in and check your dashboard balance.
@@ -415,17 +688,41 @@ Your Pimlico paymaster balance is empty. The free tier works for testnet — log
 ### `nonce` error
 A previous UserOperation from this smart account is still pending in the bundler mempool. Wait 30–60 seconds and retry.
 
+### Batch transaction fails
+One of the calls in your batch likely has wrong arguments or a contract that's rejecting the call. The whole batch is atomic — if one call reverts, all revert. Test each call individually first.
+
 ---
 
 ## Production checklist
 
-- [ ] Move from Polygon Amoy to Polygon mainnet (change `chain` and `rpcUrl`)
+- [ ] Move from testnet to mainnet (change `chain` and `rpcUrl`)
 - [ ] Upgrade Pimlico to a paid plan (free tier is testnet only)
-- [ ] Set `PRIVATE_KEY` and deployment keys only in server env, never in `VITE_` prefixed vars
-- [ ] Audit your Solidity contract before mainnet
-- [ ] Add `waitForTransactionReceipt` calls where confirmation matters
+- [ ] Set private keys and deployment secrets only in server env, never in `VITE_` prefixed vars
+- [ ] Audit your Solidity contract before mainnet deployment
+- [ ] Add `waitForTransactionReceipt` confirmation handling for critical flows
 - [ ] Handle the `error` state from `useSmartAccount` visibly in your UI
 - [ ] Add `.env` to `.gitignore`
+
+---
+
+## Changelog
+
+### v0.3.0
+- ✨ `useWallet` — unified hook (auth + smart account + balance + chain info)
+- ✨ `useContractRead` — contract reads with caching, auto-refetch, and loading states
+- ✨ `createERC4337Config` — portable config object to avoid repeating params
+- ✨ Expanded chain support: `base`, `arbitrum`, `optimism`, `avalanche`, `bsc`
+
+### v0.2.0
+- ✨ `useTransaction` — unified tx management with `pending/confirmed/failed` states
+- ✨ `useBalance` — native token balance with auto-fetch and refetch
+- ✨ `useTokenBalance` — ERC20 balance with auto-fetched symbol, decimals, name
+- ✨ `useBatchTransaction` — multiple contract calls in a single UserOperation
+- ✨ `useExplorer` — chain-aware block explorer URL builder
+
+### v0.1.2
+- Initial public release
+- `ChainProvider`, `useSmartAccount`, `useStoreOnChain`, `sha256Hash`, `sha256HashFile`
 
 ---
 
@@ -448,7 +745,6 @@ Found a bug? Have a feature request? Contributions are welcome!
 - **Privy dashboard**: https://dashboard.privy.io
 - **Pimlico dashboard**: https://dashboard.pimlico.io
 - **Alchemy**: https://dashboard.alchemy.com
-- **Polygon Amoy explorer**: https://amoy.polygonscan.com
 - **ERC-4337 spec**: https://eips.ethereum.org/EIPS/eip-4337
 
 ---
