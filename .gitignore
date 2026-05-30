@@ -10,6 +10,7 @@ test/
 # Environment variables
 .env
 .env.*
+ERC4337_KIT_ROADMAP.md
 
 # IDE
 .vscode/
