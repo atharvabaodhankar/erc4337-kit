@@ -1,5 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { encodeFunctionData } from 'viem'
+import { useERC4337 } from '../providers/ChainProvider.jsx'
+import { parseAAError } from '../utils/errors.js'
 
 // localStorage key for daily usage tracking
 const USAGE_KEY = (address) => `erc4337kit:policy:${address?.toLowerCase()}`
@@ -115,12 +117,13 @@ export function createPaymasterPolicy({
  * // If over daily limit:
  * // error = "Daily transaction limit reached (20/20). Resets at midnight UTC."
  */
-export function usePaymasterPolicy({
-  smartAccountClient,
-  smartAccountAddress,
-  policy,
-  gasUsdPrice = 1.0,
-}) {
+export function usePaymasterPolicy(params = {}) {
+  const context = useERC4337()
+  const smartAccountClient = params?.smartAccountClient ?? context?.smartAccount?.smartAccountClient
+  const smartAccountAddress = params?.smartAccountAddress ?? context?.smartAccount?.smartAccountAddress
+  const policy = params?.policy
+  const gasUsdPrice = params?.gasUsdPrice ?? 1.0
+
   const storageKey = USAGE_KEY(smartAccountAddress)
 
   const [pending, setPending]     = useState(false)
@@ -297,7 +300,8 @@ export function usePaymasterPolicy({
         return hash
 
       } catch (err) {
-        setError(err.message || 'Transaction failed')
+        const structured = parseAAError(err)
+        setError(structured.message)
         setFailed(true)
         console.error('[erc4337-kit] usePaymasterPolicy.send failed:', err)
         return null

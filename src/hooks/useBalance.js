@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createPublicClient, http, formatEther } from 'viem'
+import { useERC4337 } from '../providers/ChainProvider.jsx'
 
 /**
  * useBalance
@@ -31,7 +32,12 @@ import { createPublicClient, http, formatEther } from 'viem'
  *
  * // Display: "Balance: 0.5 MATIC"
  */
-export function useBalance({ address, chain, rpcUrl }) {
+export function useBalance(params = {}) {
+  const context = useERC4337()
+  const address = params?.address ?? context?.smartAccount?.smartAccountAddress
+  const chain = params?.chain ?? context?.chain
+  const rpcUrl = params?.rpcUrl ?? context?.rpcUrl
+
   const [raw, setRaw]           = useState(null)
   const [formatted, setFormatted] = useState(null)
   const [isLoading, setIsLoading] = useState(false)

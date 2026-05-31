@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react'
 import { encodeFunctionData } from 'viem'
+import { useERC4337 } from '../providers/ChainProvider.jsx'
+import { parseAAError } from '../utils/errors.js'
 
 /**
  * useTransaction
@@ -36,7 +38,10 @@ import { encodeFunctionData } from 'viem'
  *   args: [dataHash]
  * })
  */
-export function useTransaction({ smartAccountClient }) {
+export function useTransaction(params = {}) {
+  const context = useERC4337()
+  const smartAccountClient = params?.smartAccountClient ?? context?.smartAccount?.smartAccountClient
+
   const [pending, setPending]       = useState(false)
   const [confirmed, setConfirmed]   = useState(false)
   const [failed, setFailed]         = useState(false)
@@ -106,8 +111,8 @@ export function useTransaction({ smartAccountClient }) {
         return hash
 
       } catch (err) {
-        const message = parseTransactionError(err)
-        setError(message)
+        const structured = parseAAError(err)
+        setError(structured.message)
         setFailed(true)
         console.error('[erc4337-kit] useTransaction failed:', err)
         return null
@@ -137,38 +142,4 @@ export function useTransaction({ smartAccountClient }) {
     error,
     reset,
   }
-}
-
-// -----------------------------------------------------------------
-// Internal: parse ERC-4337 / Pimlico errors into human messages
-// -----------------------------------------------------------------
-function parseTransactionError(err) {
-  const msg = err?.message || err?.toString() || 'Unknown error'
-
-  if (msg.includes('AA21')) {
-    return 'Paymaster rejected: your Pimlico API key may be invalid or the policy does not cover this chain.'
-  }
-  if (msg.includes('AA31')) {
-    return 'Paymaster out of funds. Check your Pimlico dashboard deposit balance.'
-  }
-  if (msg.includes('AA23') || msg.includes('invalid signature')) {
-    return 'Wallet signature failed. Try logging out and back in.'
-  }
-  if (msg.includes('gas') && msg.includes('too low')) {
-    return 'Gas estimate too low. The contract function may be too expensive for the paymaster policy.'
-  }
-  if (msg.includes('nonce')) {
-    return 'Nonce error. A previous transaction may still be pending — wait a moment and retry.'
-  }
-  if (msg.includes('user rejected') || msg.includes('User rejected')) {
-    return 'Transaction was cancelled.'
-  }
-  if (msg.includes('fetch') || msg.includes('network')) {
-    return 'Network error. Check your RPC URL and Pimlico API key.'
-  }
-  if (msg.includes('reverted')) {
-    return 'Transaction reverted. The contract rejected the call — check your arguments.'
-  }
-
-  return msg
 }

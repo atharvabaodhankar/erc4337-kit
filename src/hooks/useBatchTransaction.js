@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react'
 import { encodeFunctionData } from 'viem'
+import { useERC4337 } from '../providers/ChainProvider.jsx'
+import { parseAAError } from '../utils/errors.js'
 
 /**
  * useBatchTransaction
@@ -42,7 +44,10 @@ import { encodeFunctionData } from 'viem'
  *
  * // Both calls go in a single UserOperation — one signature, one gas sponsorship
  */
-export function useBatchTransaction({ smartAccountClient }) {
+export function useBatchTransaction(params = {}) {
+  const context = useERC4337()
+  const smartAccountClient = params?.smartAccountClient ?? context?.smartAccount?.smartAccountClient
+
   const [pending, setPending]       = useState(false)
   const [confirmed, setConfirmed]   = useState(false)
   const [failed, setFailed]         = useState(false)
@@ -123,8 +128,8 @@ export function useBatchTransaction({ smartAccountClient }) {
         return hash
 
       } catch (err) {
-        const message = parseBatchError(err)
-        setError(message)
+        const structured = parseAAError(err)
+        setError(structured.message)
         setFailed(true)
         console.error('[erc4337-kit] useBatchTransaction failed:', err)
         return null
@@ -154,38 +159,4 @@ export function useBatchTransaction({ smartAccountClient }) {
     error,
     reset,
   }
-}
-
-// -----------------------------------------------------------------
-// Internal: parse common batch + ERC-4337 errors into human messages
-// -----------------------------------------------------------------
-function parseBatchError(err) {
-  const msg = err?.message || err?.toString() || 'Unknown error'
-
-  if (msg.includes('AA21')) {
-    return 'Paymaster rejected: your Pimlico API key may be invalid or the policy does not cover this chain.'
-  }
-  if (msg.includes('AA31')) {
-    return 'Paymaster out of funds. Check your Pimlico dashboard deposit balance.'
-  }
-  if (msg.includes('AA23') || msg.includes('invalid signature')) {
-    return 'Wallet signature failed. Try logging out and back in.'
-  }
-  if (msg.includes('gas') && msg.includes('too low')) {
-    return 'Gas estimate too low. The batch may be too large for the paymaster policy — try splitting into smaller batches.'
-  }
-  if (msg.includes('nonce')) {
-    return 'Nonce error. A previous transaction may still be pending — wait a moment and retry.'
-  }
-  if (msg.includes('user rejected') || msg.includes('User rejected')) {
-    return 'Transaction batch was cancelled.'
-  }
-  if (msg.includes('fetch') || msg.includes('network')) {
-    return 'Network error. Check your RPC URL and Pimlico API key.'
-  }
-  if (msg.includes('executeBatch') || msg.includes('multicall')) {
-    return 'Batch execution failed. One of the calls in the batch may have reverted — check your arguments.'
-  }
-
-  return msg
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createPublicClient, http, formatUnits } from 'viem'
+import { useERC4337 } from '../providers/ChainProvider.jsx'
 
 // Minimal ERC20 ABI — only the functions we need
 const ERC20_ABI = [
@@ -67,7 +68,15 @@ const ERC20_ABI = [
  *
  * // Display: "100.5 USDC"
  */
-export function useTokenBalance({ tokenAddress, address, chain, rpcUrl }) {
+export function useTokenBalance(params = {}) {
+  const context = useERC4337()
+  const isLegacyStyle = typeof params === 'string'
+
+  const tokenAddress = isLegacyStyle ? params : params?.tokenAddress
+  const address = isLegacyStyle ? context?.smartAccount?.smartAccountAddress : (params?.address ?? context?.smartAccount?.smartAccountAddress)
+  const chain = isLegacyStyle ? context?.chain : (params?.chain ?? context?.chain)
+  const rpcUrl = isLegacyStyle ? context?.rpcUrl : (params?.rpcUrl ?? context?.rpcUrl)
+
   const [raw, setRaw]             = useState(null)
   const [formatted, setFormatted] = useState(null)
   const [symbol, setSymbol]       = useState(null)

@@ -39,7 +39,17 @@
  * const { data } = useContractRead({ address, abi, functionName, ...config })
  * const balance = useBalance({ address: wallet.address, ...config })
  */
-export function createERC4337Config({ chain, rpcUrl, pimlicoApiKey = null }) {
+export function createERC4337Config({
+  chain,
+  rpcUrl,
+  pimlicoApiKey = null,
+  alchemyApiKey = null,
+  biconomyApiKey = null,
+  bundler = 'pimlico',
+  paymaster = 'pimlico',
+  bundlerUrl = null,
+  paymasterUrl = null,
+}) {
   if (!chain) {
     throw new Error('[erc4337-kit] createERC4337Config: `chain` is required')
   }
@@ -50,6 +60,12 @@ export function createERC4337Config({ chain, rpcUrl, pimlicoApiKey = null }) {
   return {
     chain,
     rpcUrl,
+    bundler,
+    paymaster,
     ...(pimlicoApiKey ? { pimlicoApiKey } : {}),
+    ...(alchemyApiKey ? { alchemyApiKey } : {}),
+    ...(biconomyApiKey ? { biconomyApiKey } : {}),
+    ...(bundlerUrl ? { bundlerUrl } : {}),
+    ...(paymasterUrl ? { paymasterUrl } : {}),
   }
 }

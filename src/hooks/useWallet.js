@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useSmartAccount } from './useSmartAccount.js'
 import { useBalance } from './useBalance.js'
+import { useERC4337 } from '../providers/ChainProvider.jsx'
 
 /**
  * useWallet
@@ -70,53 +71,107 @@ import { useBalance } from './useBalance.js'
  * // Send a tx
  * await wallet.smartAccountClient.sendTransaction({ to, data, value: 0n })
  */
-export function useWallet({ pimlicoApiKey, rpcUrl, chain }) {
-  // Get smart account state
-  const {
-    login,
-    logout,
-    authenticated,
-    user,
-    smartAccountAddress,
-    smartAccountClient,
-    pimlicoClient,
-    isReady,
-    isLoading,
-    error,
-  } = useSmartAccount({ pimlicoApiKey, rpcUrl, chain })
+export function useWallet(config = {}) {
+  const context = useERC4337()
+  const hasConfig = Object.keys(config).length > 0
 
-  // Get native balance (only fetches when smartAccountAddress is available)
+  // 1. Context-level Zero-Config execution
+  if (context && !hasConfig) {
+    const { smartAccount, balance, chain } = context
+
+    const owner = useMemo(() => {
+      if (!smartAccount.user) return null
+      const embeddedWallet = smartAccount.user.linkedAccounts?.find(
+        (a) => a.type === 'wallet' && a.walletClientType === 'privy'
+      )
+      return embeddedWallet?.address ?? null
+    }, [smartAccount.user])
+
+    return {
+      // Auth
+      login: smartAccount.login,
+      logout: smartAccount.logout,
+      authenticated: smartAccount.authenticated,
+      user: smartAccount.user,
+
+      // Smart Account
+      address: smartAccount.smartAccountAddress,
+      smartAccountAddress: smartAccount.smartAccountAddress,
+      smartAccountClient: smartAccount.smartAccountClient,
+      pimlicoClient: smartAccount.pimlicoClient,
+      paymasterClient: smartAccount.paymasterClient,
+      isReady: smartAccount.isReady,
+      isLoading: smartAccount.isLoading,
+      error: smartAccount.error,
+
+      // Chain
+      chain,
+      chainId: chain?.id ?? null,
+      chainName: chain?.name ?? null,
+
+      // Balance
+      balance,
+
+      // EOA Owner
+      owner,
+    }
+  }
+
+  // 2. Direct calling configuration fallback (Backward Compatibility)
+  const {
+    pimlicoApiKey,
+    alchemyApiKey,
+    biconomyApiKey,
+    bundler,
+    paymaster,
+    bundlerUrl,
+    paymasterUrl,
+    rpcUrl,
+    chain,
+  } = config
+
+  const smartAccount = useSmartAccount({
+    pimlicoApiKey,
+    alchemyApiKey,
+    biconomyApiKey,
+    bundler,
+    paymaster,
+    bundlerUrl,
+    paymasterUrl,
+    rpcUrl,
+    chain,
+  })
+
   const balance = useBalance({
-    address: smartAccountAddress,
+    address: smartAccount.smartAccountAddress,
     chain,
     rpcUrl,
   })
 
-  // Extract EOA address from the Privy user object
-  // Privy embeds the wallet as user.linkedAccounts[] with type 'wallet'
   const owner = useMemo(() => {
-    if (!user) return null
-    const embeddedWallet = user.linkedAccounts?.find(
+    if (!smartAccount.user) return null
+    const embeddedWallet = smartAccount.user.linkedAccounts?.find(
       (a) => a.type === 'wallet' && a.walletClientType === 'privy'
     )
     return embeddedWallet?.address ?? null
-  }, [user])
+  }, [smartAccount.user])
 
   return {
     // Auth
-    login,
-    logout,
-    authenticated,
-    user,
+    login: smartAccount.login,
+    logout: smartAccount.logout,
+    authenticated: smartAccount.authenticated,
+    user: smartAccount.user,
 
     // Smart Account
-    address: smartAccountAddress,
-    smartAccountAddress,
-    smartAccountClient,
-    pimlicoClient,
-    isReady,
-    isLoading,
-    error,
+    address: smartAccount.smartAccountAddress,
+    smartAccountAddress: smartAccount.smartAccountAddress,
+    smartAccountClient: smartAccount.smartAccountClient,
+    pimlicoClient: smartAccount.pimlicoClient,
+    paymasterClient: smartAccount.paymasterClient,
+    isReady: smartAccount.isReady,
+    isLoading: smartAccount.isLoading,
+    error: smartAccount.error,
 
     // Chain info
     chain,

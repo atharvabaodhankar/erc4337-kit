@@ -1,5 +1,5 @@
 // Providers
-export { ChainProvider } from './providers/ChainProvider.jsx'
+export { ChainProvider, useERC4337, ERC4337Context } from './providers/ChainProvider.jsx'
 
 // Hooks — v0.1
 export { useSmartAccount } from './hooks/useSmartAccount.js'

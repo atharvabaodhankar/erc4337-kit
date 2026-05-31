@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPublicClient, http } from 'viem'
+import { useERC4337 } from '../providers/ChainProvider.jsx'
 
 /**
  * useContractRead
@@ -51,17 +52,19 @@ import { createPublicClient, http } from 'viem'
  *   refetchInterval: 10_000,  // refetch every 10 seconds
  * })
  */
-export function useContractRead({
-  address,
-  abi,
-  functionName,
-  args = [],
-  account,
-  chain,
-  rpcUrl,
-  refetchInterval = 0,
-  enabled = true,
-}) {
+export function useContractRead(params = {}) {
+  const context = useERC4337()
+  const {
+    address,
+    abi,
+    functionName,
+    args = [],
+    account = context?.smartAccount?.smartAccountAddress,
+    chain = context?.chain,
+    rpcUrl = context?.rpcUrl,
+    refetchInterval = 0,
+    enabled = true,
+  } = params
   const [data, setData]           = useState(undefined)
   const [isLoading, setIsLoading] = useState(true)    // true on the initial fetch only
   const [isFetching, setIsFetching] = useState(false) // true on any fetch

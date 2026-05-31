@@ -879,6 +879,64 @@ We export:
 
 ---
 
+### Zero-Config Hooks & Context ✨ v0.6
+
+You no longer need to pass the `chain`, `rpcUrl`, and API keys to every hook! Wrap your application in `<ChainProvider>` and configure your settings once at the root level. All hooks will automatically consume configurations, clients, and addresses from the global React Context.
+
+**1. Configure your root provider once:**
+
+```jsx
+import { ChainProvider, polygonAmoy } from 'erc4337-kit'
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <ChainProvider
+    privyAppId={import.meta.env.VITE_PRIVY_APP_ID}
+    chain={polygonAmoy}
+    rpcUrl={import.meta.env.VITE_RPC_URL}
+    
+    // Optional infrastructure configuration (Option C)
+    bundler="alchemy"          // 'pimlico' | 'alchemy' (default: 'pimlico')
+    paymaster="alchemy"        // 'pimlico' | 'alchemy' (default: 'pimlico')
+    pimlicoApiKey={import.meta.env.VITE_PIMLICO_API_KEY}
+    alchemyApiKey={import.meta.env.VITE_ALCHEMY_API_KEY}
+  >
+    <App />
+  </ChainProvider>
+)
+```
+
+**2. Call zero-config parameter-free hooks anywhere in your React tree:**
+
+```jsx
+import { useWallet, useTransaction, useBalance } from 'erc4337-kit'
+
+function MyComponent() {
+  // 1. Auto-configures auth, smart account client, and balance
+  const wallet = useWallet() 
+
+  // 2. Auto-binds your smart account client for gasless transactions
+  const tx = useTransaction() 
+
+  // 3. Auto-fetches native balance for your smart account
+  const balance = useBalance() 
+  
+  return (
+    <div>
+      <p>{wallet.address}</p>
+      <button onClick={() => tx.send({ to: '0x...', value: 100n })}>
+        Send Gasless
+      </button>
+    </div>
+  )
+}
+```
+
+We export:
+* `useERC4337()` — context hook to consume raw configurations, `smartAccount`, and `balance` states.
+* `ERC4337Context` — raw React Context object for custom wrapping and testing.
+
+---
+
 ## Troubleshooting
 
 ### `ReferenceError: Buffer is not defined`
@@ -920,6 +978,12 @@ One of the calls in your batch likely has wrong arguments or a contract that's r
 ---
 
 ## Changelog
+
+### v0.6.0
+- ✨ **Zero-Config Hooks** (`useWallet`, `useTransaction`, `useBalance`, `useTokenBalance`, `useBatchTransaction`, `useExplorer`, `useContractRead`, `usePaymasterPolicy`, `useUserOperation`) automatically consume configuration, clients, and state from the global React Context.
+- ✨ **Multi-Bundler & Multi-Paymaster Support** (Option C) for Pimlico, Alchemy, and custom JSON-RPC URLs.
+- ✨ `useERC4337` and `ERC4337Context` exported to query global provider configuration and wallet status.
+- ✨ Structured `parseAAError` integration inside `useTransaction`, `useBatchTransaction`, and `usePaymasterPolicy` to automatically provide human-friendly fixes on failure.
 
 ### v0.5.0
 - ✨ **CLI tool** (`npx erc4337-kit init`) for zero-config Vite, Next.js, and React starter templates.

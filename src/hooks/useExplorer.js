@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useERC4337 } from '../providers/ChainProvider.jsx'
 
 /**
  * useExplorer
@@ -31,7 +32,10 @@ import { useMemo } from 'react'
  * // Display shortened hash with link
  * <a href={explorer.tx(hash)}>{hash.slice(0, 8)}...{hash.slice(-6)}</a>
  */
-export function useExplorer({ chain }) {
+export function useExplorer(params = {}) {
+  const context = useERC4337()
+  const chain = params?.chain ?? context?.chain
+
   return useMemo(() => {
     // viem chains expose blockExplorers.default.url and .name
     const explorerUrl = chain?.blockExplorers?.default?.url ?? null

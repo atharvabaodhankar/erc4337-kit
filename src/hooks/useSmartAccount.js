@@ -4,7 +4,7 @@ import { createPublicClient, createWalletClient, http, custom } from 'viem'
 import { createSmartAccountClient } from 'permissionless'
 import { toSimpleSmartAccount } from 'permissionless/accounts'
 import { createPimlicoClient } from 'permissionless/clients/pimlico'
-import { entryPoint07Address } from 'viem/account-abstraction'
+import { entryPoint07Address, createPaymasterClient } from 'viem/account-abstraction'
 
 // Internal helper — builds the Pimlico endpoint URL from chain ID
 function buildPimlicoUrl(chainId, apiKey) {
@@ -32,7 +32,17 @@ function buildPimlicoUrl(chainId, apiKey) {
  *   error
  * }
  */
-export function useSmartAccount({ pimlicoApiKey, rpcUrl, chain }) {
+export function useSmartAccount({
+  pimlicoApiKey = null,
+  alchemyApiKey = null,
+  biconomyApiKey = null,
+  bundler = 'pimlico',
+  paymaster = 'pimlico',
+  bundlerUrl = null,
+  paymasterUrl = null,
+  rpcUrl,
+  chain,
+}) {
   const { login, logout, authenticated, user, ready } = usePrivy()
   const { wallets } = useWallets()
   const { createWallet } = useCreateWallet()
@@ -40,6 +50,7 @@ export function useSmartAccount({ pimlicoApiKey, rpcUrl, chain }) {
   const [smartAccountAddress, setSmartAccountAddress] = useState(null)
   const [smartAccountClient, setSmartAccountClient] = useState(null)
   const [pimlicoClient, setPimlicoClient] = useState(null)
+  const [paymasterClient, setPaymasterClient] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -47,11 +58,34 @@ export function useSmartAccount({ pimlicoApiKey, rpcUrl, chain }) {
   const initCalledRef = useRef(false)
   const walletCreationAttempted = useRef(false)
 
-  const pimlicoUrl = buildPimlicoUrl(chain.id, pimlicoApiKey)
+  // Memoize resolved URL components to prevent re-renders
+  const resolvedBundlerUrl = useMemo(() => {
+    if (bundlerUrl) return bundlerUrl
+    if (bundler === 'pimlico') {
+      if (!pimlicoApiKey) return null
+      return `https://api.pimlico.io/v2/${chain?.id}/rpc?apikey=${pimlicoApiKey}`
+    }
+    if (bundler === 'alchemy') {
+      return rpcUrl
+    }
+    return null
+  }, [bundlerUrl, bundler, pimlicoApiKey, chain?.id, rpcUrl])
+
+  const resolvedPaymasterUrl = useMemo(() => {
+    if (paymasterUrl) return paymasterUrl
+    if (paymaster === 'pimlico') {
+      if (!pimlicoApiKey) return null
+      return `https://api.pimlico.io/v2/${chain?.id}/rpc?apikey=${pimlicoApiKey}`
+    }
+    if (paymaster === 'alchemy') {
+      return rpcUrl
+    }
+    return null
+  }, [paymasterUrl, paymaster, pimlicoApiKey, chain?.id, rpcUrl])
 
   const initSmartAccount = useCallback(async () => {
     // Guard: only proceed when Privy is fully ready and user is logged in
-    if (!authenticated || !ready) return
+    if (!authenticated || !ready || !chain || !rpcUrl) return
 
     // If no wallet yet, try to create one (Privy sometimes needs a nudge)
     if (!wallets || wallets.length === 0) {
@@ -100,14 +134,34 @@ export function useSmartAccount({ pimlicoApiKey, rpcUrl, chain }) {
         transport: http(rpcUrl),
       })
 
-      // Pimlico client handles bundling + gas sponsorship
-      const pimlico = createPimlicoClient({
-        transport: http(pimlicoUrl),
-        entryPoint: {
-          address: entryPoint07Address,
-          version: '0.7',
-        },
-      })
+      // Setup bundler and paymaster based on option C
+      if (!resolvedBundlerUrl) {
+        throw new Error(`[erc4337-kit] Configuration error: bundler '${bundler}' requires a valid API key or bundlerUrl override`)
+      }
+
+      let paymasterObj = null
+      let pimlicoInstance = null
+
+      if (paymaster === 'pimlico') {
+        if (!resolvedPaymasterUrl) {
+          throw new Error('[erc4337-kit] Configuration error: Pimlico paymaster requires a valid pimlicoApiKey')
+        }
+        pimlicoInstance = createPimlicoClient({
+          transport: http(resolvedPaymasterUrl),
+          entryPoint: {
+            address: entryPoint07Address,
+            version: '0.7',
+          },
+        })
+        paymasterObj = pimlicoInstance
+      } else if (paymaster === 'alchemy') {
+        if (!resolvedPaymasterUrl) {
+          throw new Error('[erc4337-kit] Configuration error: Alchemy paymaster requires a valid RPC URL')
+        }
+        paymasterObj = createPaymasterClient({
+          transport: http(resolvedPaymasterUrl),
+        })
+      }
 
       // SimpleSmartAccount: the simplest ERC-4337 account type
       // deterministic address — same owner always gets same SA address
@@ -126,18 +180,25 @@ export function useSmartAccount({ pimlicoApiKey, rpcUrl, chain }) {
       const client = createSmartAccountClient({
         account: smartAccount,
         chain,
-        bundlerTransport: http(pimlicoUrl),
-        paymaster: pimlico,
-        // userOperation config: tell Pimlico to sponsor everything
+        bundlerTransport: http(resolvedBundlerUrl),
+        ...(paymasterObj ? { paymaster: paymasterObj } : {}),
+        // userOperation config: tell paymaster to sponsor everything
         userOperation: {
           estimateFeesPerGas: async () => {
-            const fees = await pimlico.getUserOperationGasPrice()
-            return fees.fast
+            if (paymaster === 'pimlico' && pimlicoInstance) {
+              const fees = await pimlicoInstance.getUserOperationGasPrice()
+              return fees.fast
+            } else {
+              // Fallback to standard gas price estimation via public client
+              const fees = await publicClient.estimateFeesPerGas()
+              return fees
+            }
           },
         },
       })
 
-      setPimlicoClient(pimlico)
+      setPimlicoClient(pimlicoInstance)
+      setPaymasterClient(paymasterObj)
       setSmartAccountClient(client)
       setSmartAccountAddress(smartAccount.address)
 
@@ -149,7 +210,18 @@ export function useSmartAccount({ pimlicoApiKey, rpcUrl, chain }) {
     } finally {
       setIsLoading(false)
     }
-  }, [authenticated, wallets, ready, createWallet, chain, rpcUrl, pimlicoUrl])
+  }, [
+    authenticated,
+    wallets,
+    ready,
+    createWallet,
+    chain,
+    rpcUrl,
+    bundler,
+    paymaster,
+    resolvedBundlerUrl,
+    resolvedPaymasterUrl,
+  ])
 
   useEffect(() => {
     initSmartAccount()
@@ -163,6 +235,7 @@ export function useSmartAccount({ pimlicoApiKey, rpcUrl, chain }) {
     setSmartAccountAddress(null)
     setSmartAccountClient(null)
     setPimlicoClient(null)
+    setPaymasterClient(null)
     setError(null)
   }, [logout])
 
@@ -174,6 +247,7 @@ export function useSmartAccount({ pimlicoApiKey, rpcUrl, chain }) {
     smartAccountAddress,
     smartAccountClient,
     pimlicoClient,
+    paymasterClient,
     isReady: !!smartAccountClient && !!smartAccountAddress,
     isLoading,
     error,

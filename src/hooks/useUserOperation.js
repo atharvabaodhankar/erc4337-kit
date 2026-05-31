@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useERC4337 } from '../providers/ChainProvider.jsx'
 
 /**
  * useUserOperation
@@ -40,12 +41,14 @@ import { useState, useEffect, useCallback, useRef } from 'react'
  * {status === 'confirmed' && <p>Tx: {txHash}</p>}
  * {status === 'timeout'   && <p>Still pending after 2 minutes</p>}
  */
-export function useUserOperation({
-  userOpHash,
-  pimlicoClient,
-  pollInterval = 2_000,
-  timeout = 120_000,
-}) {
+export function useUserOperation(params = {}) {
+  const context = useERC4337()
+  const isLegacy = typeof params === 'string'
+
+  const userOpHash = isLegacy ? params : params?.userOpHash
+  const pimlicoClient = isLegacy ? context?.smartAccount?.pimlicoClient : (params?.pimlicoClient ?? context?.smartAccount?.pimlicoClient)
+  const pollInterval = isLegacy ? 2_000 : (params?.pollInterval ?? 2_000)
+  const timeout = isLegacy ? 120_000 : (params?.timeout ?? 120_000)
   const [status, setStatus]   = useState('idle')
   const [receipt, setReceipt] = useState(null)
   const [txHash, setTxHash]   = useState(null)

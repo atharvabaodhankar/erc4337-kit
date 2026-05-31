@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react'
 import { encodeFunctionData } from 'viem'
+import { useERC4337 } from '../providers/ChainProvider.jsx'
+import { parseAAError } from '../utils/errors.js'
 
 /**
  * useStoreOnChain
@@ -34,12 +36,13 @@ import { encodeFunctionData } from 'viem'
  * // In your handler:
  * await submit([dataHash])
  */
-export function useStoreOnChain({
-  smartAccountClient,
-  contractAddress,
-  abi,
-  functionName,
-}) {
+export function useStoreOnChain(params = {}) {
+  const context = useERC4337()
+  const smartAccountClient = params?.smartAccountClient ?? context?.smartAccount?.smartAccountClient
+  const contractAddress = params?.contractAddress
+  const abi = params?.abi
+  const functionName = params?.functionName
+
   const [txHash, setTxHash] = useState(null)
   const [recordId, setRecordId] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -61,40 +64,43 @@ export function useStoreOnChain({
       setRecordId(null)
 
       try {
-        // encodeFunctionData turns your ABI + args into the raw calldata bytes
-        // that the smart account will call on the target contract
+        // Encode contract function arguments into standard EVM calldata
         const calldata = encodeFunctionData({
           abi,
           functionName,
           args,
         })
 
-        // sendTransaction on a SmartAccountClient works differently than a normal
-        // wallet tx. Under the hood it:
-        //   1. Builds a UserOperation
-        //   2. Estimates gas (callGasLimit, verificationGasLimit, preVerificationGas)
-        //   3. Calls your paymaster (Pimlico) for sponsorship
-        //   4. Signs the UserOperation with the embedded wallet
-        //   5. Sends it to the Pimlico bundler
-        //   6. Returns the tx hash once the bundler accepts it
-        //
-        // The tx hash here is the ACTUAL on-chain tx hash, not the UserOp hash.
+        // Send gasless UserOperation via permissionless SmartAccountClient.
+        // Handles gas fee estimation, paymaster sponsorship request,
+        // EOA signature signing, and mempool bundler submission.
         const hash = await smartAccountClient.sendTransaction({
           to: contractAddress,
           data: calldata,
-          value: 0n,  // no ETH/MATIC sent — this is just a contract call
+          value: 0n,
         })
 
         setTxHash(hash)
+
+        // Wait for on-chain block mining confirmation
+        const txReceipt = await smartAccountClient.waitForTransactionReceipt({
+          hash,
+        })
+
+        if (txReceipt.status === 'reverted') {
+          throw new Error('Transaction reverted on-chain.')
+        }
+
         setIsSuccess(true)
 
-        // Try to extract the returned bytes32 record ID from the receipt logs
-        // This is specific to BaseStorage.sol which emits RecordStored(id, ...)
+        // Attempt to decode bytes32 recordId from logs (if contract emitted it)
         try {
-          const receipt = await smartAccountClient.waitForTransactionReceipt({ hash })
-          const firstLog = receipt.logs?.[0]
-          if (firstLog?.topics?.[1]) {
-            setRecordId(firstLog.topics[1])
+          if (txReceipt.logs && txReceipt.logs.length > 0) {
+            const firstLog = txReceipt.logs[0]
+            if (firstLog.topics && firstLog.topics.length > 1) {
+              const decodedId = firstLog.topics[1]
+              setRecordId(decodedId)
+            }
           }
         } catch {
           // Log parsing failing is not a fatal error — tx already succeeded
@@ -103,8 +109,8 @@ export function useStoreOnChain({
         return hash
 
       } catch (err) {
-        const message = parseError(err)
-        setError(message)
+        const structured = parseAAError(err)
+        setError(structured.message)
         console.error('[erc4337-kit] Transaction failed:', err)
         return null
       } finally {
