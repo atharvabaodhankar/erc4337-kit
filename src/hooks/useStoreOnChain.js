@@ -65,6 +65,7 @@ export function useStoreOnChain(params = {}) {
 
       try {
         // Encode contract function arguments into standard EVM calldata
+        console.log('[erc4337-kit] 1. Encoding contract function calldata...')
         const calldata = encodeFunctionData({
           abi,
           functionName,
@@ -74,18 +75,23 @@ export function useStoreOnChain(params = {}) {
         // Send gasless UserOperation via permissionless SmartAccountClient.
         // Handles gas fee estimation, paymaster sponsorship request,
         // EOA signature signing, and mempool bundler submission.
+        console.log('[erc4337-kit] 2. Submitting sendTransaction to smartAccountClient (triggering gasless estimate & Privy signature)...')
         const hash = await smartAccountClient.sendTransaction({
           to: contractAddress,
           data: calldata,
           value: 0n,
         })
 
+        console.log('[erc4337-kit] 3. sendTransaction completed! Tx Hash:', hash)
         setTxHash(hash)
 
         // Wait for on-chain block mining confirmation
+        console.log('[erc4337-kit] 4. Awaiting on-chain transaction receipt...')
         const txReceipt = await smartAccountClient.waitForTransactionReceipt({
           hash,
         })
+
+        console.log('[erc4337-kit] 5. Transaction confirmed on-chain! Status:', txReceipt.status)
 
         if (txReceipt.status === 'reverted') {
           throw new Error('Transaction reverted on-chain.')

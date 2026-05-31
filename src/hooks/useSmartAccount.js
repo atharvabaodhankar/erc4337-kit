@@ -1,6 +1,6 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { usePrivy, useWallets, useCreateWallet } from '@privy-io/react-auth'
-import { createPublicClient, createWalletClient, http, custom } from 'viem'
+import { createPublicClient, createWalletClient, http, custom, publicActions } from 'viem'
 import { createSmartAccountClient } from 'permissionless'
 import { toSimpleSmartAccount } from 'permissionless/accounts'
 import { createPimlicoClient } from 'permissionless/clients/pimlico'
@@ -114,7 +114,14 @@ export function useSmartAccount({
     setError(null)
 
     try {
-      const wallet = wallets[0]
+      console.log('[erc4337-kit] Connected wallets in Privy:', wallets.map(w => ({
+        address: w.address,
+        walletClientType: w.walletClientType,
+        connectorType: w.connectorType
+      })))
+
+      // Prioritize finding the Privy embedded wallet (social logins) over browser extensions (like MetaMask)
+      const wallet = wallets.find(w => w.walletClientType === 'privy' || w.connectorType === 'embedded') || wallets[0]
 
       // Switch to the configured chain before doing anything
       await wallet.switchChain(chain.id)
@@ -195,7 +202,7 @@ export function useSmartAccount({
             }
           },
         },
-      })
+      }).extend(publicActions)
 
       setPimlicoClient(pimlicoInstance)
       setPaymasterClient(paymasterObj)
