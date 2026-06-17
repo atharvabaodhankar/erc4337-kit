@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { encodeFunctionData } from 'viem'
+import { encodeFunctionData, createPublicClient, http } from 'viem'
 import { useERC4337 } from '../providers/ChainProvider.jsx'
 import { parseAAError } from '../utils/errors.js'
 
@@ -42,6 +42,8 @@ export function useStoreOnChain(params = {}) {
   const contractAddress = params?.contractAddress
   const abi = params?.abi
   const functionName = params?.functionName
+  const chain = context?.chain
+  const rpcUrl = context?.rpcUrl
 
   const [txHash, setTxHash] = useState(null)
   const [recordId, setRecordId] = useState(null)
@@ -85,9 +87,13 @@ export function useStoreOnChain(params = {}) {
         console.log('[erc4337-kit] 3. sendTransaction completed! Tx Hash:', hash)
         setTxHash(hash)
 
-        // Wait for on-chain block mining confirmation
-        console.log('[erc4337-kit] 4. Awaiting on-chain transaction receipt...')
-        const txReceipt = await smartAccountClient.waitForTransactionReceipt({
+        // Wait for on-chain block mining confirmation using dedicated public client
+        console.log('[erc4337-kit] 4. Awaiting on-chain transaction receipt via public client...')
+        const publicClient = createPublicClient({
+          chain: chain || smartAccountClient.chain,
+          transport: http(rpcUrl),
+        })
+        const txReceipt = await publicClient.waitForTransactionReceipt({
           hash,
         })
 
@@ -123,7 +129,7 @@ export function useStoreOnChain(params = {}) {
         setIsLoading(false)
       }
     },
-    [smartAccountClient, contractAddress, abi, functionName]
+    [smartAccountClient, contractAddress, abi, functionName, chain, rpcUrl]
   )
 
   const reset = useCallback(() => {

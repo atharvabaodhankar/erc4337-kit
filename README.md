@@ -130,6 +130,19 @@ VITE_CONTRACT_ADDRESS=      # your deployed contract address (after you deploy)
 
 ---
 
+## Demo Application (Todo App)
+
+A pre-configured, highly premium glassmorphic Todo list application demonstrating `erc4337-kit` in a real-world setting is available at:
+👉 **[github.com/atharvabaodhankar/erc4337-kit-demo](https://github.com/atharvabaodhankar/erc4337-kit-demo)**
+
+You can clone this demo repository to test:
+- Social sign-in (Google/Email).
+- Deterministic Smart Account creation.
+- 100% sponsored gasless transaction syncing.
+- Cryptographic verification & tamper-proofing simulations.
+
+---
+
 ## Quick Start
 
 ### 1. Wrap your app with `ChainProvider`
